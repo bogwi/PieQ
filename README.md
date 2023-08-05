@@ -1,4 +1,4 @@
-# PieQ, A PriorityQueue ADT in ZIG
+# Priority Queue in ZIG
 
 ## Foreword
 
@@ -42,7 +42,7 @@ Running `zig build bench` without arguments tests on default 1Mil. With modern C
         .version = "version_of_your_package",
         .dependencies = .{
             .PieQ = .{
-                .url = "https://github.com/bogwi/PieQ/archive/master.tar.gz",
+                .url = "https://github.com/bogwi/pieQ/archive/master.tar.gz",
                 .hash = "1220dbe03c05ad89578e9522d3f2ff1fa611495f770773c711979ac00e48fd2825e9",
             },
         },
@@ -72,7 +72,7 @@ Running `zig build bench` without arguments tests on default 1Mil. With modern C
 
 3. Import the module.
     ```zig
-        const PriorityQueue = @import("PieQ").PieQ;
+        const PieQ = @import("PieQ").PieQ;
     ```
 4. This is your comparison function if you want numbers.
     ```zig
@@ -84,8 +84,8 @@ Running `zig build bench` without arguments tests on default 1Mil. With modern C
     ```
 5. And this this how you initiate the Queue.
     ```zig
-        var minQueue = PriorityQueue(u32, u32, .min, compareU32).init(your_allocator);
+        var minQueue = PieQ(u32, u32, .min, compareU32).init(your_allocator);
         defer minQueue.deinit();
     ```
 
-To find more, please look at the testing section, file `pie_queue.zig`. Tests and the code are placed together so you can explore the implementation better, hovering over the functions and all. Thanks.
+To find more, please look at the testing section, file `pieq.zig`. Tests and the code are placed together so you can explore the implementation better, hovering over the functions and all. Thanks.
