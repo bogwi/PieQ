@@ -27,6 +27,13 @@ pub fn PieQ(comptime Key: type, comptime Value: type, comptime orientation: Orie
         const Self = @This();
         const Item = struct { key: Key, val: Value };
 
+        const QueueError = error{
+            OutOfSize,
+            OutOfMemory,
+            QueueIsEmpty,
+            AttemptToModifyLockedRoot,
+        };
+
         const Dashboard = struct {
             root_locked: bool = false,
             orientation: Orientation = orientation,
@@ -122,12 +129,11 @@ pub fn PieQ(comptime Key: type, comptime Value: type, comptime orientation: Orie
             return self.dashboard.orientation;
         }
         /// Pushes the given `Item` into the Queue, keeping the Queue invariant.
-        pub fn push(self: *Self, item: Item) void {
-            self.data.append(item) catch unreachable;
+        pub fn push(self: *Self, item: Item) QueueError!void {
+            try self.data.append(item);
             self.upheap(self.data.items.len - 1);
         }
 
-        const QueueError = error{ QueueIsEmpty, AttemptToModifyLockedRoot };
         /// Removes and returns the root of the Queue.
         /// If Queue is .min oriented, the root Item has the *smallest* key, often called *best key*.
         ///
@@ -216,17 +222,19 @@ pub fn PieQ(comptime Key: type, comptime Value: type, comptime orientation: Orie
 
         /// Returns the exact copy of the current Queue using the same allocator.
         /// Separate call deinit() on the clone is required as well.
-        pub fn clone(self: *Self) Self {
-            return .{ .data = self.data.clone() catch unreachable, .dashboard = .{ .root_locked = self.dashboard.root_locked, .orientation = self.dashboard.orientation, .allocator = self.dashboard.allocator } };
+        pub fn clone(self: *Self) !Self {
+            return .{ .data = try self.data.clone(), .dashboard = .{ .root_locked = self.dashboard.root_locked, .orientation = self.dashboard.orientation, .allocator = self.dashboard.allocator } };
         }
         /// Returns the same Queue only with the opposite orientation, using the same allocator.
         /// If the Queue was initiated as `.min`, it will return max Queue.
         /// Contrary, if the Queue was built as `.max`, it will return min Queue.
         /// The original stays intact. A separate call deinit() on the clone is required as well.
-        pub fn cloneAsOpposite(self: *Self) Self {
+        pub fn cloneAsOpposite(self: *Self) QueueError!Self {
             var opposite = init(self.dashboard.allocator);
+
             opposite.dashboard.orientation = if (self.dashboard.orientation == Orientation.min) Orientation.max else Orientation.min;
-            opposite.meldIntoSelf(self.data.items);
+
+            try opposite.meldIntoSelf(self.data.items);
             return opposite;
         }
         /// Wipes the Queue out clean, reducing its size to 0(zero).
@@ -256,12 +264,12 @@ pub fn PieQ(comptime Key: type, comptime Value: type, comptime orientation: Orie
         /// preserves firstQueue's orientation. See `Orientation` enum, `exportAsIterable()` method.
         /// If you need to meld an iterable array of key-value pairs or tuples,
         /// see `meldIntoSelfFromIndexable()` method;
-        pub fn meldIntoSelf(self: *Self, iterable: anytype) void {
+        pub fn meldIntoSelf(self: *Self, iterable: anytype) QueueError!void {
             // compatibility test; yields a compile error if fails
             _ = iterable[0].key;
             _ = iterable[0].val;
 
-            for (iterable) |item| self.data.append(.{ .key = item.key, .val = item.val }) catch unreachable;
+            for (iterable) |item| try self.data.append(.{ .key = item.key, .val = item.val });
             self.heapify();
         }
         /// Melds into a new Queue from any indexable iterable type containing
@@ -279,9 +287,9 @@ pub fn PieQ(comptime Key: type, comptime Value: type, comptime orientation: Orie
         /// gives the new firstQueue's orientation. See `Orientation` enum `exportAsIterable()` method.
         /// If you need to meld a Queue with an iterable array of key-value pairs
         /// into a new Queue, see `meldIntoNewFromIndexable()` method;
-        pub fn meldIntoNew(self: *Self, iterable: anytype) Self {
-            var new = self.clone();
-            new.meldIntoSelf(iterable);
+        pub fn meldIntoNew(self: *Self, iterable: anytype) QueueError!Self {
+            var new = try self.clone();
+            try new.meldIntoSelf(iterable);
             return new;
         }
         /// Melds into a new Queue an indexable iterable which contains
@@ -300,9 +308,9 @@ pub fn PieQ(comptime Key: type, comptime Value: type, comptime orientation: Orie
         /// gives Self's orientation. See `Orientation` enum.
         /// If you need to meld a Queue with another Queue into a new Queue,
         /// see `meldIntoNewFromIndexable()` method;
-        pub fn meldIntoNewFromIndexable(self: *Self, iterable: anytype) Self {
-            var new = self.clone();
-            new.meldIntoSelfFromIndexable(iterable);
+        pub fn meldIntoNewFromIndexable(self: *Self, iterable: anytype) QueueError!Self {
+            var new = try self.clone();
+            try new.meldIntoSelfFromIndexable(iterable);
             return new;
         }
         /// Melds into itself an indexable iterable which contains
@@ -320,12 +328,12 @@ pub fn PieQ(comptime Key: type, comptime Value: type, comptime orientation: Orie
         /// Regardless of your array's orientation, melding into Self
         /// preserves Self's orientation. See `Orientation` enum.
         /// If you need to meld one Queue into another, see `meldIntoSelf()` method.
-        pub fn meldIntoSelfFromIndexable(self: *Self, iterable: anytype) void {
+        pub fn meldIntoSelfFromIndexable(self: *Self, iterable: anytype) QueueError!void {
             // compatibility test; yields a compile error if fails
             _ = iterable[0][0];
             _ = iterable[0][1];
 
-            for (iterable) |item| self.data.append(.{ .key = item[0], .val = item[1] }) catch unreachable;
+            for (iterable) |item| try self.data.append(.{ .key = item[0], .val = item[1] });
             if (self.data.items.len > 1) self.heapify();
         }
     };
@@ -354,7 +362,7 @@ test "Queue basics: understand minQueue and maxQueue" {
 
     // push without declaring an Item type
     const numbers = [_]u8{ 0, 3, 1, 4, 2, 5, 0 };
-    for (numbers) |num| minQueue.push(.{ .key = num, .val = num });
+    for (numbers) |num| try minQueue.push(.{ .key = num, .val = num });
 
     // declaring an Item type might more explicit
     // yet, this way Item will fit only this particular minQueue
@@ -371,7 +379,7 @@ test "Queue basics: understand minQueue and maxQueue" {
     };
 
     // meld array_of_pairs into minQueue and test whether the Queue is .min oriented
-    minQueue.meldIntoSelf(&array_of_pairs);
+    try minQueue.meldIntoSelf(&array_of_pairs);
     const order = [_]u8{ 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 7, 8, 9 };
     for (order) |digit| {
         var item = try minQueue.pop();
@@ -397,7 +405,7 @@ test "Queue basics: understand minQueue and maxQueue" {
     };
 
     // meld array_of_pairs2 into maxQueue and test whether the Queue is .max oriented
-    maxQueue.meldIntoSelfFromIndexable(&array_of_pairs2);
+    try maxQueue.meldIntoSelfFromIndexable(&array_of_pairs2);
     var idx: usize = 1;
     while (idx <= 17) : (idx += 1) {
         var item = try maxQueue.pop();
@@ -407,20 +415,20 @@ test "Queue basics: understand minQueue and maxQueue" {
     try expect(maxQueue.count() == 0);
 
     // re-build minQueue and maxQueue again
-    minQueue.meldIntoSelfFromIndexable(&array_of_pairs2);
-    maxQueue.meldIntoSelf(&array_of_pairs);
+    try minQueue.meldIntoSelfFromIndexable(&array_of_pairs2);
+    try maxQueue.meldIntoSelf(&array_of_pairs);
 
     // create new Queues
     // here we explore a built-in method exportAsIterable()
-    var thirdQueue = minQueue.meldIntoNew(maxQueue.exportAsIterable());
+    var thirdQueue = try minQueue.meldIntoNew(maxQueue.exportAsIterable());
     defer thirdQueue.deinit();
     try expect(thirdQueue.isMin());
 
-    var fourthQueue = maxQueue.meldIntoNewFromIndexable(&array_of_pairs2);
+    var fourthQueue = try maxQueue.meldIntoNewFromIndexable(&array_of_pairs2);
     defer fourthQueue.deinit();
     try expect(fourthQueue.minOrMax() == .max);
 
-    var fifthQueue = fourthQueue.cloneAsOpposite();
+    var fifthQueue = try fourthQueue.cloneAsOpposite();
     defer fifthQueue.deinit();
     while (!fifthQueue.isEmpty()) {
         try expect((try fifthQueue.pop()).key == (try thirdQueue.pop()).key);
@@ -437,7 +445,7 @@ test "Queue: clone, cloneAsOpposite " {
     defer maxQueue.deinit();
 
     const numbers = [_]i8{ -8, 0, -7, 3, 1, 4, -9, 2, -11, 5, 6, -10 };
-    for (numbers) |num| maxQueue.push(.{ .key = num, .val = num * num });
+    for (numbers) |num| try maxQueue.push(.{ .key = num, .val = num * num });
     // got { 6, 5, 4, 3, 2, 1, 0, -7, -8, -9, -10, -11 }
 
     const order = [_]i8{ 6, 5, 4, 3, 2, 1, 0, -7, -8, -9, -10, -11 };
@@ -446,7 +454,7 @@ test "Queue: clone, cloneAsOpposite " {
         try expect(item.key == digit);
     } // left { 2, 1, 0, -7, -8, -9, -10, -11 }
 
-    var maxQueue2 = maxQueue.clone();
+    var maxQueue2 = try maxQueue.clone();
     defer maxQueue2.deinit();
 
     try expect(maxQueue2.count() == maxQueue.count());
@@ -456,7 +464,7 @@ test "Queue: clone, cloneAsOpposite " {
         try expect(item.key == digit);
     } // left { -8, -9, -10, -11 }
 
-    var minQueue = maxQueue2.cloneAsOpposite(); // got mirror { -11, -10, -9, -8 }
+    var minQueue = try maxQueue2.cloneAsOpposite(); // got mirror { -11, -10, -9, -8 }
     defer minQueue.deinit();
 
     for (order[8..]) |_| {
@@ -482,9 +490,9 @@ test "Queue: getRoot, getAfterRoot, lockRoot" {
     };
     for (alphabet) |char| {
         switch (@mod(72, char)) {
-            0 => maxQueue.push(.{ .key = char, .val = BestErrorEver.konnichiwa }),
-            7 => maxQueue.push(.{ .key = char, .val = BestErrorEver.sayonara }),
-            else => maxQueue.push(.{ .key = char, .val = BestErrorEver.kochi }),
+            0 => try maxQueue.push(.{ .key = char, .val = BestErrorEver.konnichiwa }),
+            7 => try maxQueue.push(.{ .key = char, .val = BestErrorEver.sayonara }),
+            else => try maxQueue.push(.{ .key = char, .val = BestErrorEver.kochi }),
         }
         var root = try maxQueue.getRoot();
         try expect(root.val == BestErrorEver.konnichiwa);
@@ -538,7 +546,7 @@ test "Queue: understand changeRoot method" {
 
     const powers = [_]u32{ 128, 2, 8, 4096, 4, 16, 256, 512, 1, 32, 64, 2048, 1024, 8192 };
     for (powers) |power| {
-        maxQueue.push(.{ .key = power, .val = .JohnDoe });
+        try maxQueue.push(.{ .key = power, .val = .JohnDoe });
     }
     try expect((try maxQueue.getRoot()).key == 8192);
 
@@ -557,7 +565,7 @@ test "Queue: understand changeRoot method" {
     // reinsert key 16384 again!
     // Queue will cause it to climb up and take the root's place.
     const last = .{ .key = 16384, .val = .JohnDoe };
-    maxQueue.push(last);
+    try maxQueue.push(last);
     try expect((try maxQueue.getRoot()).key == 16384);
 
     // attempt to change the root while it is locked will cause an error!
@@ -639,7 +647,7 @@ test "Queue: use struct as key, sort vectors by their self-product" {
     for (keys_) |item| {
         var vec: Vec = .{};
         vec = vec.init(item);
-        maxQueue.push(.{ .key = vec, .val = vec.prod() });
+        try maxQueue.push(.{ .key = vec, .val = vec.prod() });
     }
 
     try expect((try maxQueue.pop()).val == 255024);
@@ -675,9 +683,9 @@ test "Queue: sort binary keys" {
     var minQueue = PieQ(u32, Value, .min, compareOddEven).init(std.testing.allocator);
     defer minQueue.deinit();
 
-    for (keys.items) |key| minQueue.push(.{ .key = key, .val = if (key == 0) .even else .odd });
+    for (keys.items) |key| try minQueue.push(.{ .key = key, .val = if (key == 0) .even else .odd });
 
-    var maxQueue = minQueue.cloneAsOpposite(); // reverse the Queue
+    var maxQueue = try minQueue.cloneAsOpposite(); // reverse the Queue
     defer maxQueue.deinit();
 
     while (int > 0) : (int -= 1) {
@@ -713,7 +721,7 @@ test "Queue: sort enum literals" {
     var minQueue = PieQ(Colors, u2, .min, compareColors).init(std.testing.allocator);
     defer minQueue.deinit();
 
-    for (colors.items) |color| minQueue.push(.{ .key = color, .val = blk: {
+    for (colors.items) |color| try minQueue.push(.{ .key = color, .val = blk: {
         var result: u2 = undefined;
         switch (color) {
             .violet => result = 0,
@@ -724,7 +732,7 @@ test "Queue: sort enum literals" {
         break :blk result;
     } });
 
-    var maxQueue = minQueue.cloneAsOpposite(); // get reverse of the Queue
+    var maxQueue = try minQueue.cloneAsOpposite(); // get reverse of the Queue
     defer maxQueue.deinit();
 
     int = 4 * 4;
