@@ -1,5 +1,5 @@
 const std = @import("std");
-const PieQ = @import("pie_queue.zig").PieQ;
+const PieQ = @import("pieq.zig").PieQ;
 const stdout = std.io.getStdOut().writer();
 
 const HELP =
@@ -96,7 +96,7 @@ pub fn benchmark(N: usize) !void {
     const Timestamp = std.time.nanoTimestamp;
     var time: i128 = Timestamp();
     for (keys.items) |num| {
-        minQueue.push(.{ .key = num, .val = num });
+        try minQueue.push(.{ .key = num, .val = num });
     }
     time = Timestamp() - time;
     sum += time;
