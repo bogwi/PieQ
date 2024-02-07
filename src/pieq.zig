@@ -78,7 +78,7 @@ pub fn PieQ(comptime Key: type, comptime Value: type, comptime orientation: Orie
         fn downheap(self: *Self, j: usize) void {
             var j_ = j;
             while (self.has_left(j_)) {
-                var smallest = if (self.has_right(j_) and compareFn(self.isMin(), self.data.items[right(j_)].key, self.data.items[left(j_)].key))
+                const smallest = if (self.has_right(j_) and compareFn(self.isMin(), self.data.items[right(j_)].key, self.data.items[left(j_)].key))
                     right(j_)
                 else
                     left(j_);
@@ -151,11 +151,11 @@ pub fn PieQ(comptime Key: type, comptime Value: type, comptime orientation: Orie
                 switch (self.count()) {
                     else => {
                         if (compareFn(self.isMin(), self.data.items[1].key, self.data.items[2].key)) {
-                            var item = self.data.swapRemove(1);
+                            const item = self.data.swapRemove(1);
                             self.downheap(1);
                             return item;
                         } else {
-                            var item = self.data.swapRemove(2);
+                            const item = self.data.swapRemove(2);
                             self.downheap(2);
                             return item;
                         }
@@ -382,7 +382,7 @@ test "Queue basics: understand minQueue and maxQueue" {
     try minQueue.meldIntoSelf(&array_of_pairs);
     const order = [_]u8{ 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 7, 8, 9 };
     for (order) |digit| {
-        var item = try minQueue.pop();
+        const item = try minQueue.pop();
         // check minQueue against <order> array whether it pops items sorted from left to right
         try expect(item.key == digit);
     }
@@ -408,7 +408,7 @@ test "Queue basics: understand minQueue and maxQueue" {
     try maxQueue.meldIntoSelfFromIndexable(&array_of_pairs2);
     var idx: usize = 1;
     while (idx <= 17) : (idx += 1) {
-        var item = try maxQueue.pop();
+        const item = try maxQueue.pop();
         // check maxQueue against <order> array but on reverse, from right to left
         try expect(item.key == order[order.len - idx]);
     }
@@ -450,7 +450,7 @@ test "Queue: clone, cloneAsOpposite " {
 
     const order = [_]i8{ 6, 5, 4, 3, 2, 1, 0, -7, -8, -9, -10, -11 };
     for (order[0..4]) |digit| {
-        var item = try maxQueue.pop();
+        const item = try maxQueue.pop();
         try expect(item.key == digit);
     } // left { 2, 1, 0, -7, -8, -9, -10, -11 }
 
@@ -460,7 +460,7 @@ test "Queue: clone, cloneAsOpposite " {
     try expect(maxQueue2.count() == maxQueue.count());
 
     for (order[4..8]) |digit| {
-        var item = try maxQueue2.pop();
+        const item = try maxQueue2.pop();
         try expect(item.key == digit);
     } // left { -8, -9, -10, -11 }
 
@@ -468,8 +468,8 @@ test "Queue: clone, cloneAsOpposite " {
     defer minQueue.deinit();
 
     for (order[8..]) |_| {
-        var item = try minQueue.pop();
-        try expect(item.key == order[@intCast(try std.math.absInt(item.key))]);
+        const item = try minQueue.pop();
+        try expect(item.key == order[@intCast(@abs(item.key))]);
     }
 
     try expect(minQueue.count() == 0);
@@ -494,7 +494,7 @@ test "Queue: getRoot, getAfterRoot, lockRoot" {
             7 => try maxQueue.push(.{ .key = char, .val = BestErrorEver.sayonara }),
             else => try maxQueue.push(.{ .key = char, .val = BestErrorEver.kochi }),
         }
-        var root = try maxQueue.getRoot();
+        const root = try maxQueue.getRoot();
         try expect(root.val == BestErrorEver.konnichiwa);
     }
 
@@ -506,21 +506,21 @@ test "Queue: getRoot, getAfterRoot, lockRoot" {
     try expect(maxQueue.isRootLocked());
 
     for (ordered_alphabet[1..8]) |char| {
-        var after_root = try maxQueue.getAfterRoot();
-        var item = try maxQueue.pop();
+        const after_root = try maxQueue.getAfterRoot();
+        const item = try maxQueue.pop();
 
         try expect(item.val == blk: {
             if (char == 65) {
-                var expected = BestErrorEver.sayonara;
+                const expected = BestErrorEver.sayonara;
                 break :blk expected;
             } else {
-                var expected = BestErrorEver.kochi;
+                const expected = BestErrorEver.kochi;
                 break :blk expected;
             }
         });
         try expect(std.meta.eql(item, after_root));
 
-        var root = try maxQueue.getRoot();
+        const root = try maxQueue.getRoot();
         try expect(root.val == BestErrorEver.konnichiwa);
     }
     try expect(maxQueue.count() == 1);
@@ -528,7 +528,7 @@ test "Queue: getRoot, getAfterRoot, lockRoot" {
     maxQueue.lockRoot(false); // root protection is off
     try expect(!maxQueue.isRootLocked());
 
-    var root = try maxQueue.pop();
+    const root = try maxQueue.pop();
     try expect(root.val == BestErrorEver.konnichiwa);
     try expect(maxQueue.count() == 0);
 }
@@ -689,8 +689,8 @@ test "Queue: sort binary keys" {
     defer maxQueue.deinit();
 
     while (int > 0) : (int -= 1) {
-        var item = try minQueue.pop();
-        var item2 = try maxQueue.pop();
+        const item = try minQueue.pop();
+        const item2 = try maxQueue.pop();
         try expect(if (int > 8) item.val == .even else item.val == .odd);
         try expect(if (int > 8) item2.val == .odd else item2.val == .even);
     }
@@ -737,8 +737,8 @@ test "Queue: sort enum literals" {
 
     int = 4 * 4;
     while (int > 0) : (int -= 1) {
-        var item = try minQueue.pop();
-        var item2 = try maxQueue.pop();
+        const item = try minQueue.pop();
+        const item2 = try maxQueue.pop();
         try expect(item.val + item2.val == 3); // a proof that items are sorted when popped out
     }
 }

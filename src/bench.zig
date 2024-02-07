@@ -29,7 +29,7 @@ fn prettyNumber(N: usize, alloc: std.mem.Allocator) !void {
 
     var counter: u8 = 0;
     while (N_ > 0) : (counter += 1) {
-        var rem: u8 = @intCast(N_ % 10);
+        const rem: u8 = @intCast(N_ % 10);
         if (counter == 3) {
             stack.append(0x5F) catch unreachable;
             counter = 0;
@@ -43,7 +43,7 @@ fn prettyNumber(N: usize, alloc: std.mem.Allocator) !void {
     }
 }
 fn writeTimestamps(header: []const u8, stamps: []i128, N: usize, alloc: std.mem.Allocator) !void {
-    var actions = [_][]const u8{ "action", "push", "pop", "sum" };
+    const actions = [_][]const u8{ "action", "push", "pop", "sum" };
     try stdout.print("\n{s}", .{header});
     try prettyNumber(N, alloc);
     try stdout.print(" items\n", .{});
@@ -137,7 +137,6 @@ pub fn main() !void {
         }
 
         if (integer) {
-            // TODO give warning if N > 1B, y - n ?
             N = try std.fmt.parseUnsigned(usize, args[i], 10);
         } else if (std.mem.eql(u8, args[i], "-h")) {
             std.debug.print(HELP ++ "\n", .{});
